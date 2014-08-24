@@ -2,7 +2,7 @@
 Tiny server written in Go that receives commands to run, runs them, and posts the result, all via Redis.
 
 ### Command request
-(`LPUSH rasmusReq`)
+(`LPUSH namespace:rasmus:req`)
 ```JSON
 {
     "uuid":"11111",
@@ -14,7 +14,7 @@ Tiny server written in Go that receives commands to run, runs them, and posts th
 
 
 ### Command response
-(`HGET rasmusResp 1111`)
+(`BRPOP namespace:rasmus:resp:11111`)
 ```JSON
 {
  "Completed":true,
@@ -32,3 +32,10 @@ Tiny server written in Go that receives commands to run, runs them, and posts th
 * write (`input` to `path` with `mode`)
 * execute (`input` piped to `path` with `params`)
 * list (`path`)
+
+### Usage
+
+```
+  $ rasmus [password] [namespace]
+```
+

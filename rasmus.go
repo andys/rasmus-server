@@ -37,10 +37,18 @@ type Rasmus struct {
 	RedisOutput     redis.Conn
 	timeout         time.Duration
 	namespace       string
+	password        string
 }
 
 func main() {
-	app := Rasmus{timeout: 15 * time.Second, ResponseChannel: make(chan Response, 100)}
+	app := Rasmus{timeout: 10 * time.Second, ResponseChannel: make(chan Response, 20)}
+	if len(os.Args) > 1 {
+		app.password = os.Args[1]
+	}
+	if len(os.Args) > 2 {
+		app.namespace = os.Args[2]
+	}
+
 	go app.ResponseSender()
 	for {
 		app.ProcessOneRequest()
@@ -62,13 +70,15 @@ func (app *Rasmus) SendOneResponse(response Response) {
 		if app.RedisOutput == nil {
 			app.RedisOutput = app.dial()
 		}
-		_, err := app.RedisOutput.Do("HSET", "rasmusResp", response.uuid, json)
+		key := app.redisKey("resp:" + response.uuid)
+		_, err := app.RedisOutput.Do("LPUSH", key, json)
 		if err != nil {
 			app.RedisOutput = nil
-			log("Error in redis HSET: " + err.Error())
+			log("Error in redis LPUSH: " + err.Error())
 			time.Sleep(app.timeout)
 		} else {
 			unsent = false
+			app.RedisOutput.Do("EXPIRE", key, "600")
 		}
 	}
 }
@@ -90,6 +100,12 @@ func (app *Rasmus) dial() (conn redis.Conn) {
 			time.Sleep(app.timeout)
 		} else {
 			log("Connected to redis (127.0.0.1:6379)")
+			if app.password != "" {
+				_, err = conn.Do("AUTH", app.password)
+				if err != nil {
+					log("Error during AUTH:" + err.Error())
+				}
+			}
 		}
 	}
 	return conn
@@ -100,7 +116,7 @@ func (app *Rasmus) ProcessOneRequest() {
 		app.RedisInput = app.dial()
 	}
 
-	rawRequest, err := app.RedisInput.Do("BRPOP", "rasmusReq", 5)
+	rawRequest, err := app.RedisInput.Do("BRPOP", app.redisKey("req"), 5)
 	requestStrings, err := redis.Strings(rawRequest, err)
 	if err == nil {
 		var request Request
