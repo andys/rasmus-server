@@ -37,15 +37,21 @@ type Rasmus struct {
 	RedisOutput     redis.Conn
 	timeout         time.Duration
 	namespace       string
+	host            string
 	password        string
 }
 
 func main() {
 	app := Rasmus{timeout: 10 * time.Second, ResponseChannel: make(chan Response, 20)}
 	if len(os.Args) > 1 {
-		app.password = os.Args[1]
-	}
+		app.host = os.Args[1]
+	} else {
+		app.host = "127.0.0.1:6379"
+  }
 	if len(os.Args) > 2 {
+		app.password = os.Args[2]
+	}
+	if len(os.Args) > 3 {
 		app.namespace = os.Args[2]
 	}
 
@@ -94,12 +100,12 @@ func (app *Rasmus) redisKey(keyappend string) string {
 func (app *Rasmus) dial() (conn redis.Conn) {
 	for conn == nil {
 		var err error
-		conn, err = redis.DialTimeout("tcp4", "127.0.0.1:6379", app.timeout, app.timeout, app.timeout)
+		conn, err = redis.DialTimeout("tcp4", app.host, app.timeout, app.timeout, app.timeout)
 		if conn == nil {
-			log("Error connecting to redis: " + err.Error())
+			log("Error connecting to redis " + app.host + ": " + err.Error())
 			time.Sleep(app.timeout)
 		} else {
-			log("Connected to redis (127.0.0.1:6379)")
+			log("Connected to redis " + app.host)
 			if app.password != "" {
 				_, err = conn.Do("AUTH", app.password)
 				if err != nil {
